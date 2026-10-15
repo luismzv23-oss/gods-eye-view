@@ -14,6 +14,8 @@ import {
   loadTxdotSourcesFromOpenData,
   loadTallinnSourcesFromCatalog,
   loadTarkteeSourcesFromDatex,
+  loadVenezuelaSourcesFromCatalog,
+  loadArgentinaSourcesFromCatalog,
   loadWarendorfSourcesFromCatalog,
   loadNswSourcesFromOpenData,
   loadCalgarySourcesFromOpenData,
@@ -76,6 +78,16 @@ const LIVE_PACKS = [
     name: 'tarktee',
     enabled: () => envEnabled('CCTV_TARKTEE_ENABLED'),
     load: loadTarkteeSourcesFromDatex,
+  },
+  {
+    name: 'venezuela',
+    enabled: () => envEnabled('CCTV_VENEZUELA_ENABLED'),
+    load: loadVenezuelaSourcesFromCatalog,
+  },
+  {
+    name: 'argentina',
+    enabled: () => envEnabled('CCTV_ARGENTINA_ENABLED'),
+    load: loadArgentinaSourcesFromCatalog,
   },
   {
     name: 'warendorf',

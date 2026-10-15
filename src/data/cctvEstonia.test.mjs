@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   loadTallinnSourcesFromCatalog,
+  loadVenezuelaSourcesFromCatalog,
   parseTarkteeDatexImages,
   parseTarkteeDatexLocations,
 } from '../../server/providers/cctv/sources.js';
@@ -83,4 +84,28 @@ test('Tarktee DATEX image parser rejects non-official hosts', () => {
   );
   const images = parseTarkteeDatexImages(xml);
   assert.equal(images.size, 0);
+});
+
+test('Venezuela curated airport feeds load valid public image sources', () => {
+  const cameras = loadVenezuelaSourcesFromCatalog();
+  assert.ok(cameras.length >= 9, `expected 9 Venezuelan cameras, got ${cameras.length}`);
+  for (const camera of cameras) {
+    assert.ok(camera.id.startsWith('ve-'));
+    assert.equal(camera.cityId, 'venezuela');
+    assert.equal(camera.feedType, 'image');
+    assert.ok(
+      ['venezuela-airport', 'venezuela-weather'].includes(camera.sourceKind),
+    );
+    assert.ok(
+      camera.url.startsWith('https://www.aeropuertocaracas.net/weather/') ||
+        camera.url.startsWith('https://imgproxy.windy.com/'),
+      `unexpected Venezuela camera host: ${camera.url}`,
+    );
+    assert.ok(Number.isFinite(camera.lat) && Number.isFinite(camera.lon));
+  }
+  const ciudadGuayana = cameras.find((camera) => camera.id === 've-301681');
+  assert.equal(ciudadGuayana?.city, 'Ciudad Guayana');
+  assert.equal(ciudadGuayana?.sourceKind, 'venezuela-weather');
+  assert.equal(ciudadGuayana?.lat, 8.2897);
+  assert.equal(ciudadGuayana?.lon, -62.7215);
 });

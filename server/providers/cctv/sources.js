@@ -43,6 +43,15 @@ import {
   TARKTEE_IMAGE_ORIGIN,
   DEFAULT_TARKTEE_MAX_SOURCES,
   TARKTEE_ANCHORS,
+  DEFAULT_VENEZUELA_SOURCE_FILE,
+  VENEZUELA_IMAGE_ORIGIN,
+  VENEZUELA_IMAGE_ORIGINS,
+  DEFAULT_VENEZUELA_MAX_SOURCES,
+  VENEZUELA_CENTER,
+  DEFAULT_ARGENTINA_SOURCE_FILE,
+  DEFAULT_ARGENTINA_MAX_SOURCES,
+  ARGENTINA_IMAGE_ORIGINS,
+  ARGENTINA_HLS_ORIGINS,
   DEFAULT_WARENDORF_SOURCE_FILE,
   WARENDORF_IMAGE_ORIGINS,
   NSW_CAMERAS_URL,
@@ -1245,6 +1254,211 @@ export async function loadTarkteeSourcesFromDatex() {
     );
     return [];
   }
+}
+
+/**
+ * Load the public camera stills from Aeropuerto de Maiquetía, Caracas, from the
+ * curated source catalog. The feed is public and serves a JPEG from a fixed
+ * airport host; only that origin is accepted.
+ *
+ * @returns {Array<object>} Normalized camera source objects.
+ */
+export function loadVenezuelaSourcesFromCatalog({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_VENEZUELA_SOURCES_FILE || DEFAULT_VENEZUELA_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+  let rows = [];
+  try {
+    if (!fs.existsSync(resolved)) {
+      console.warn('[CCTV] Venezuela source file missing:', resolved);
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn(
+      '[CCTV] Venezuela source file read error:',
+      error?.message || error,
+    );
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const id =
+      typeof item.id === 'string' || typeof item.id === 'number'
+        ? `ve-${String(item.id).trim()}`
+        : '';
+    if (!id) continue;
+    const url =
+      typeof item.url === 'string'
+        ? item.url.trim()
+        : typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : '';
+    if (!VENEZUELA_IMAGE_ORIGINS.some((origin) => url.startsWith(origin)))
+      continue;
+    const lat = typeof item.lat === 'number' ? item.lat : NaN;
+    const lon = typeof item.lon === 'number' ? item.lon : NaN;
+    if (!isPlausibleLatLon(lat, lon)) continue;
+
+    const headingDeg = toFiniteNumber(item.headingDeg, NaN);
+    const hasHeading = Number.isFinite(headingDeg);
+    cameras.push({
+      id,
+      name: String(item.name || id).trim(),
+      city: String(item.city || 'Maiquetía').trim(),
+      cityId: 'venezuela',
+      provider: String(item.provider || 'Aeropuerto de Maiquetía').trim(),
+      lat,
+      lon,
+      headingDeg: hasHeading
+        ? ((headingDeg % 360) + 360) % 360
+        : fallbackHeadingFromId(id),
+      headingConfidence: hasHeading ? 'high' : 'low',
+      pitchDeg: hasHeading ? -24 : -18,
+      fovDeg: hasHeading ? 56 : 44,
+      rangeM: hasHeading ? 210 : 145,
+      mountHeightM: hasHeading ? 10 : 8,
+      groundElevationM: toFiniteNumber(item.groundElevationM, 18),
+      feedType: 'image',
+      url,
+      snapshotUrl: url,
+      sourceKind:
+        item.sourceKind === 'venezuela-weather'
+          ? 'venezuela-weather'
+          : 'venezuela-airport',
+      license: 'Public airport camera stills from Aeropuerto de Maiquetía',
+      poseSource: hasHeading ? 'curated' : undefined,
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_VENEZUELA_MAX_SOURCES || DEFAULT_VENEZUELA_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(4, Math.min(50, Math.floor(maxRaw)))
+    : DEFAULT_VENEZUELA_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, [VENEZUELA_CENTER]);
+  console.log(
+    `[CCTV] Loaded Venezuela camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
+}
+
+/** Load the curated public Argentina image and HLS feeds. */
+export function loadArgentinaSourcesFromCatalog({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_ARGENTINA_SOURCES_FILE || DEFAULT_ARGENTINA_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+  let rows = [];
+  try {
+    if (!fs.existsSync(resolved)) {
+      console.warn('[CCTV] Argentina source file missing:', resolved);
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn(
+      '[CCTV] Argentina source file read error:',
+      error?.message || error,
+    );
+    return [];
+  }
+
+  const imageOrigins = new Set(ARGENTINA_IMAGE_ORIGINS);
+  const hlsOrigins = new Set(ARGENTINA_HLS_ORIGINS);
+  const cameras = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const rawId =
+      typeof item.id === 'string' || typeof item.id === 'number'
+        ? String(item.id).trim()
+        : '';
+    if (!rawId) continue;
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(String(item.url || '').trim());
+    } catch {
+      continue;
+    }
+    if (parsedUrl.protocol !== 'https:') continue;
+
+    const feedType = String(item.feedType || 'image').trim().toLowerCase();
+    if (feedType === 'image') {
+      if (!imageOrigins.has(parsedUrl.origin)) continue;
+    } else if (feedType === 'hls') {
+      if (
+        !hlsOrigins.has(parsedUrl.origin) ||
+        parsedUrl.pathname !== '/playlist.m3u8' ||
+        parsedUrl.search ||
+        parsedUrl.hash
+      ) {
+        continue;
+      }
+    } else {
+      continue;
+    }
+
+    const lat = typeof item.lat === 'number' ? item.lat : NaN;
+    const lon = typeof item.lon === 'number' ? item.lon : NaN;
+    if (
+      !isPlausibleLatLon(lat, lon) ||
+      lat < -55.2 || lat > -21.5 || lon < -73.8 || lon > -53.4
+    ) {
+      continue;
+    }
+    const url = parsedUrl.toString();
+    const id = `ar-${rawId.replace(/^ar-/, '')}`;
+    cameras.push({
+      ...item,
+      id,
+      name: String(item.name || rawId).trim(),
+      city: String(item.city || 'Argentina').trim(),
+      cityId: 'argentina',
+      provider: String(item.provider || 'OpenCCTV public feed').trim(),
+      lat,
+      lon,
+      headingDeg: toFiniteNumber(item.headingDeg, fallbackHeadingFromId(id)),
+      headingConfidence: String(item.headingConfidence || 'low'),
+      pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+      fovDeg: toFiniteNumber(item.fovDeg, 44),
+      rangeM: toFiniteNumber(item.rangeM, 145),
+      mountHeightM: toFiniteNumber(item.mountHeightM, 8),
+      feedType,
+      url,
+      snapshotUrl: feedType === 'image' ? url : '',
+      sourceKind: 'argentina-public',
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_ARGENTINA_MAX_SOURCES || DEFAULT_ARGENTINA_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(1, Math.min(200, Math.floor(maxRaw)))
+    : DEFAULT_ARGENTINA_MAX_SOURCES;
+  const result = unique.slice(0, maxCount);
+  console.log(
+    `[CCTV] Loaded Argentina camera sources: ${unique.length} (using ${result.length})`,
+  );
+  return result;
 }
 
 /**

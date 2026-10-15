@@ -194,6 +194,35 @@ export const TARKTEE_ANCHORS = [
   { lat: 58.3859, lon: 24.4971 }, // Pärnu
   { lat: 59.3797, lon: 28.1791 }, // Narva
 ];
+/** Venezuela airport webcams: public airport camera stills from Aeropuerto de Maiquetía. */
+export const DEFAULT_VENEZUELA_SOURCE_FILE =
+  'config/cctv_sources.venezuela.json';
+export const DEFAULT_VENEZUELA_MAX_SOURCES = 12;
+export const VENEZUELA_IMAGE_ORIGIN =
+  'https://www.aeropuertocaracas.net/weather/';
+export const VENEZUELA_IMAGE_ORIGINS = Object.freeze([
+  VENEZUELA_IMAGE_ORIGIN,
+  'https://imgproxy.windy.com/',
+]);
+export const VENEZUELA_CENTER = { lat: 10.6035, lon: -66.9902 };
+/** Curated public Argentina camera feeds from OpenCCTV listing pages. */
+export const DEFAULT_ARGENTINA_SOURCE_FILE =
+  'config/cctv_sources.argentina.json';
+export const DEFAULT_ARGENTINA_MAX_SOURCES = 100;
+export const ARGENTINA_IMAGE_ORIGINS = Object.freeze([
+  'https://imgproxy.windy.com',
+  'https://images-webcams.windy.com',
+  'https://phenocam.nau.edu',
+  'https://varitech.ar',
+  'https://cams.opensnow.com',
+  'https://images.opentopia.com',
+]);
+export const ARGENTINA_HLS_ORIGINS = Object.freeze([
+  'https://cam104.gesell.com.ar',
+  'https://cambsasyplaya.gesell.com.ar',
+  'https://cammuelle.gesell.com.ar',
+  'https://cammuelle2.gesell.com.ar',
+]);
 /** Warendorf (Germany): the Marktplatz municipal webcam from a curated catalog file. */
 export const DEFAULT_WARENDORF_SOURCE_FILE =
   'config/cctv_sources.warendorf.json';
