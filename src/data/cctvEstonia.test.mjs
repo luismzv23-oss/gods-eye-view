@@ -88,7 +88,10 @@ test('Tarktee DATEX image parser rejects non-official hosts', () => {
 
 test('Venezuela curated airport feeds load valid public image sources', () => {
   const cameras = loadVenezuelaSourcesFromCatalog();
-  assert.ok(cameras.length >= 9, `expected 9 Venezuelan cameras, got ${cameras.length}`);
+  assert.ok(
+    cameras.length >= 9,
+    `expected 9 Venezuelan cameras, got ${cameras.length}`,
+  );
   for (const camera of cameras) {
     assert.ok(camera.id.startsWith('ve-'));
     assert.equal(camera.cityId, 'venezuela');

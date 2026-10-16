@@ -16,6 +16,7 @@ import {
   loadTarkteeSourcesFromDatex,
   loadVenezuelaSourcesFromCatalog,
   loadArgentinaSourcesFromCatalog,
+  loadBrazilSourcesFromCatalog,
   loadWarendorfSourcesFromCatalog,
   loadNswSourcesFromOpenData,
   loadCalgarySourcesFromOpenData,
@@ -88,6 +89,11 @@ const LIVE_PACKS = [
     name: 'argentina',
     enabled: () => envEnabled('CCTV_ARGENTINA_ENABLED'),
     load: loadArgentinaSourcesFromCatalog,
+  },
+  {
+    name: 'brazil',
+    enabled: () => envEnabled('CCTV_BRAZIL_ENABLED'),
+    load: loadBrazilSourcesFromCatalog,
   },
   {
     name: 'warendorf',

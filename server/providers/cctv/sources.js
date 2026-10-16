@@ -52,6 +52,10 @@ import {
   DEFAULT_ARGENTINA_MAX_SOURCES,
   ARGENTINA_IMAGE_ORIGINS,
   ARGENTINA_HLS_ORIGINS,
+  DEFAULT_BRAZIL_SOURCE_FILE,
+  DEFAULT_BRAZIL_MAX_SOURCES,
+  BRAZIL_RECIFE_IMAGE_ORIGIN,
+  BRAZIL_CETSP_IMAGE_ORIGIN,
   DEFAULT_WARENDORF_SOURCE_FILE,
   WARENDORF_IMAGE_ORIGINS,
   NSW_CAMERAS_URL,
@@ -1397,7 +1401,9 @@ export function loadArgentinaSourcesFromCatalog({
     }
     if (parsedUrl.protocol !== 'https:') continue;
 
-    const feedType = String(item.feedType || 'image').trim().toLowerCase();
+    const feedType = String(item.feedType || 'image')
+      .trim()
+      .toLowerCase();
     if (feedType === 'image') {
       if (!imageOrigins.has(parsedUrl.origin)) continue;
     } else if (feedType === 'hls') {
@@ -1417,7 +1423,10 @@ export function loadArgentinaSourcesFromCatalog({
     const lon = typeof item.lon === 'number' ? item.lon : NaN;
     if (
       !isPlausibleLatLon(lat, lon) ||
-      lat < -55.2 || lat > -21.5 || lon < -73.8 || lon > -53.4
+      lat < -55.2 ||
+      lat > -21.5 ||
+      lon < -73.8 ||
+      lon > -53.4
     ) {
       continue;
     }
@@ -1457,6 +1466,121 @@ export function loadArgentinaSourcesFromCatalog({
   const result = unique.slice(0, maxCount);
   console.log(
     `[CCTV] Loaded Argentina camera sources: ${unique.length} (using ${result.length})`,
+  );
+  return result;
+}
+
+/** Load the curated public Recife and CETSP image feeds. */
+export function loadBrazilSourcesFromCatalog({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_BRAZIL_SOURCES_FILE || DEFAULT_BRAZIL_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+  let rows = [];
+  try {
+    if (!fs.existsSync(resolved)) {
+      console.warn('[CCTV] Brazil source file missing:', resolved);
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn(
+      '[CCTV] Brazil source file read error:',
+      error?.message || error,
+    );
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const rawId =
+      typeof item.id === 'string' || typeof item.id === 'number'
+        ? String(item.id).trim()
+        : '';
+    if (!rawId) continue;
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(String(item.url || '').trim());
+    } catch {
+      continue;
+    }
+    if (parsedUrl.protocol !== 'https:') continue;
+
+    const isRecife = parsedUrl.origin === BRAZIL_RECIFE_IMAGE_ORIGIN;
+    const isCetsp = parsedUrl.origin === BRAZIL_CETSP_IMAGE_ORIGIN;
+    if (isRecife) {
+      const params = [...parsedUrl.searchParams.entries()];
+      if (
+        parsedUrl.pathname !== '/Index' ||
+        params.length !== 2 ||
+        parsedUrl.searchParams.get('handler') !== 'Snapshot' ||
+        !/^\d+$/.test(parsedUrl.searchParams.get('Codigo') || '')
+      ) {
+        continue;
+      }
+    } else if (
+      !isCetsp ||
+      !/^\/Cams\/\d+\/1\.jpg$/.test(parsedUrl.pathname) ||
+      parsedUrl.search ||
+      parsedUrl.hash
+    ) {
+      continue;
+    }
+
+    const lat = typeof item.lat === 'number' ? item.lat : NaN;
+    const lon = typeof item.lon === 'number' ? item.lon : NaN;
+    if (
+      !isPlausibleLatLon(lat, lon) ||
+      lat < -34 ||
+      lat > 6.5 ||
+      lon < -74 ||
+      lon > -34
+    ) {
+      continue;
+    }
+    const id = `br-${rawId.replace(/^br-/, '')}`;
+    const url = parsedUrl.toString();
+    cameras.push({
+      ...item,
+      id,
+      name: String(item.name || rawId).trim(),
+      city: String(item.city || (isRecife ? 'Recife' : 'São Paulo')).trim(),
+      cityId: 'brazil',
+      provider: String(
+        item.provider || (isRecife ? 'Recife traffic' : 'CETSP'),
+      ),
+      lat,
+      lon,
+      headingDeg: toFiniteNumber(item.headingDeg, fallbackHeadingFromId(id)),
+      headingConfidence: String(item.headingConfidence || 'low'),
+      pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+      fovDeg: toFiniteNumber(item.fovDeg, 44),
+      rangeM: toFiniteNumber(item.rangeM, 145),
+      mountHeightM: toFiniteNumber(item.mountHeightM, 8),
+      feedType: 'image',
+      url,
+      snapshotUrl: url,
+      sourceKind: 'brazil-public-traffic',
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_BRAZIL_MAX_SOURCES || DEFAULT_BRAZIL_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(1, Math.min(100, Math.floor(maxRaw)))
+    : DEFAULT_BRAZIL_MAX_SOURCES;
+  const result = unique.slice(0, maxCount);
+  console.log(
+    `[CCTV] Loaded Brazil camera sources: ${unique.length} (using ${result.length})`,
   );
   return result;
 }

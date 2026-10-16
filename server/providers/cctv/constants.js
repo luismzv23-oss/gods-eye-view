@@ -223,6 +223,12 @@ export const ARGENTINA_HLS_ORIGINS = Object.freeze([
   'https://cammuelle.gesell.com.ar',
   'https://cammuelle2.gesell.com.ar',
 ]);
+/** Curated public Recife and CETSP traffic camera snapshots. */
+export const DEFAULT_BRAZIL_SOURCE_FILE = 'config/cctv_sources.brazil.json';
+export const DEFAULT_BRAZIL_MAX_SOURCES = 70;
+export const BRAZIL_RECIFE_IMAGE_ORIGIN =
+  'https://transito-recife.serttel.com.br';
+export const BRAZIL_CETSP_IMAGE_ORIGIN = 'https://cameras.cetsp.com.br';
 /** Warendorf (Germany): the Marktplatz municipal webcam from a curated catalog file. */
 export const DEFAULT_WARENDORF_SOURCE_FILE =
   'config/cctv_sources.warendorf.json';
